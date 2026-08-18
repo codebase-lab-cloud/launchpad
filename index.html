@@ -281,6 +281,14 @@
   #toast svg{width:16px;height:16px; flex:none}
   #toast.err svg{color:var(--danger)} #toast.ok svg{color:var(--ok)}
 
+  /* ===== sync tab ===== */
+  .sync-sect{border:1px solid var(--border); border-radius:15px; padding:16px 16px 18px; margin-bottom:16px; background:var(--panel)}
+  .sync-sect h3{font-size:.95rem; margin-bottom:4px; letter-spacing:-.01em}
+  .sync-sect .sub{font-size:.8rem; color:var(--muted); margin-bottom:12px; line-height:1.6}
+  .sync-sect .sub b{color:var(--text)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.78rem; background:var(--chip); padding:2px 7px; border-radius:6px; border:1px solid var(--border)}
+  .sync-line{font-size:.85rem; color:var(--muted)}
+
   /* ===== touch devices (phones/tablets: no hover) ===== */
   @media (hover:none){
     .card-actions{opacity:1}           /* always show edit/delete on touch */
@@ -387,6 +395,7 @@
       <button class="tab" data-tab="manage">🗂 Manage</button>
       <button class="tab" data-tab="general">⚙️ General</button>
       <button class="tab" data-tab="data">💾 Data</button>
+      <button class="tab" data-tab="sync">☁️ Sync</button>
     </div>
 
     <!-- ADD -->
@@ -462,6 +471,42 @@
         <button class="btn btn-ghost btn-sm" id="resetBtn" style="color:var(--danger)">Reset everything</button>
       </div>
     </div>
+
+    <!-- SYNC -->
+    <div class="tab-body" id="tab-sync">
+      <div class="sync-sect">
+        <h3>⚡ Quick transfer — share link <span style="font-weight:400;color:var(--ok)">(no setup)</span></h3>
+        <div class="sub">Packs all your apps into a link. Open it on your phone (send it to yourself on WhatsApp / email) — the apps import automatically when the link opens.</div>
+        <div class="data-actions">
+          <button class="btn btn-ghost btn-sm" id="copyShareBtn">📋 Copy share link</button>
+        </div>
+      </div>
+      <div class="sync-sect">
+        <h3>☁️ Automatic sync — private Gist in your GitHub</h3>
+        <div class="sub">
+          Real cross-device sync: every change is auto-saved to a <b>secret Gist</b> in your GitHub account, and every device pulls the latest on open. Link each device once.<br/>
+          1️⃣ Create a <b>classic</b> token with only the <b>gist</b> scope: <span class="mono">github.com/settings/tokens</span> → “Generate new token (classic)” → tick only “gist”.<br/>
+          2️⃣ Paste it below on your <b>first device</b> → “Link cloud store”.<br/>
+          3️⃣ On every other device: open the <b>“Copy setup link”</b> URL and enter the same token once.
+        </div>
+        <div class="status" id="syncBox"><span class="spinner" id="syncSpin"></span><span id="syncMsg"></span></div>
+        <div id="syncSetup">
+          <div class="field"><label>GITHUB TOKEN <span style="font-weight:400;color:var(--faint)">(classic · gist scope · stays on this device)</span></label><input id="syncToken" type="password" placeholder="ghp_…" autocomplete="off" /></div>
+          <div class="field"><label>GIST ID <span style="font-weight:400;color:var(--faint)">(only on 2nd+ devices — leave empty on the first)</span></label><input id="syncGistId" type="text" placeholder="from the setup link or gist URL" autocomplete="off" /></div>
+          <button class="btn btn-primary btn-sm" id="setupSyncBtn">Link cloud store</button>
+        </div>
+        <div id="syncManage" style="display:none">
+          <div class="sync-line">✅ Linked to Gist <span class="mono" id="syncGistIdLabel"></span> · auto-sync: <b id="syncAutoLabel"></b> · last sync: <span id="syncLastLabel">–</span></div>
+          <div class="data-actions" style="margin-top:12px">
+            <button class="btn btn-primary btn-sm" id="syncNowBtn">🔄 Sync now</button>
+            <button class="btn btn-ghost btn-sm" id="autoSyncBtn">⏻ Toggle auto-sync</button>
+            <button class="btn btn-ghost btn-sm" id="copySetupBtn">🔗 Copy setup link</button>
+            <button class="btn btn-ghost btn-sm" id="unlinkSyncBtn" style="color:var(--danger)">Unlink</button>
+          </div>
+        </div>
+      </div>
+      <div class="data-note">🔒 The token is stored only in this browser’s local storage and is sent only to api.github.com. Sync strategy: the newest change wins.</div>
+    </div>
   </div>
 </div>
 
@@ -483,7 +528,9 @@ const DEFAULT_STATE = {
   title: 'Launchpad',
   heroSub: 'Paste a GitHub repository link and Launchpad pulls in the details automatically. One click on a card opens that app in a new tab.',
   theme: 'dark',
-  apps: []
+  updatedAt: 0,
+  apps: [],
+  sync: { gistId:'', token:'', auto:true, lastPush:0, lastPull:0 }
 };
 function load(){
   try{
@@ -493,7 +540,14 @@ function load(){
   }catch(e){ return {...DEFAULT_STATE}; }
 }
 let state = load();
-function persist(){ try{ storage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+state.sync = { ...DEFAULT_STATE.sync, ...(state.sync || {}) };
+if(!Array.isArray(state.apps)) state.apps = [];
+if(typeof state.updatedAt !== 'number') state.updatedAt = 0;
+function persist(bump = true){
+  if(bump) state.updatedAt = Date.now();
+  try{ storage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+  scheduleAutoPush();
+}
 
 /* ================= helpers ================= */
 const $ = s => document.querySelector(s);
@@ -671,6 +725,7 @@ function openModal(tab){
   $('#siteTitleInput').value = state.title;
   $('#siteSubInput').value = state.heroSub;
   renderManage();
+  renderSyncTab();
 }
 function closeModal(){ $('#overlay').classList.remove('open'); }
 function switchTab(tab){
@@ -877,7 +932,8 @@ $('#themeBtn').addEventListener('click', () => {
   persist(); render();
 });
 $('#exportBtn').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type:'application/json' });
+  const safeState = { ...state, sync: { gistId: state.sync.gistId, token: '', auto: state.sync.auto } };
+  const blob = new Blob([JSON.stringify(safeState, null, 2)], { type:'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'launchpad-backup.json';
@@ -894,6 +950,7 @@ $('#importFile').addEventListener('change', e => {
       const data = JSON.parse(r.result);
       if(!Array.isArray(data.apps)) throw new Error('bad file');
       state = { ...DEFAULT_STATE, ...data };
+      state.sync = { ...DEFAULT_STATE.sync, ...(state.sync || {}) };
       persist(); render();
       toast('Imported ' + state.apps.length + ' apps ✓');
     }catch(err){ toast('That file doesn’t look like a Launchpad backup', 'err'); }
@@ -915,6 +972,239 @@ $('#resetBtn').addEventListener('click', e => {
 });
 $('#searchInput').addEventListener('input', render);
 
+/* ================= share link + cloud sync (GitHub Gist) ================= */
+const GIST_FILE = 'launchpad.json';
+
+function b64enc(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin = ''; const CH = 0x8000;
+  for(let i=0;i<bytes.length;i+=CH) bin += String.fromCharCode.apply(null, bytes.subarray(i,i+CH));
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function b64dec(b){
+  b = String(b).replace(/-/g,'+').replace(/_/g,'/');
+  while(b.length % 4) b += '=';
+  const bytes = Uint8Array.from(atob(b), c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+function buildShareUrl(){
+  const payload = JSON.stringify({
+    t: state.title, s: state.heroSub,
+    a: state.apps.map(x => ({name:x.name, url:x.url, openUrl:x.openUrl, icon:x.icon, desc:x.desc, tags:x.tags, kind:x.kind, repo:x.repo, language:x.language, stars:x.stars}))
+  });
+  return location.origin + location.pathname + '#apps=' + b64enc(payload);
+}
+function buildSetupUrl(){
+  return location.origin + location.pathname + '#sync=' + b64enc(String(state.sync.gistId || ''));
+}
+async function copyText(txt){
+  try{ await navigator.clipboard.writeText(txt); return true; }
+  catch(e){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy'); ta.remove(); return ok;
+    }catch(e2){ return false; }
+  }
+}
+function importFromHash(){
+  const h = location.hash || '';
+  let touched = false;
+  const mA = h.match(/apps=([A-Za-z0-9\-_]+)/);
+  if(mA){
+    try{
+      const data = JSON.parse(b64dec(mA[1]));
+      let added = 0, updated = 0;
+      (data.a || []).forEach(app => {
+        const dup = state.apps.find(x => x.url && app.url && normalizeUrl(x.url) === normalizeUrl(app.url));
+        if(dup){ Object.assign(dup, app); updated++; }
+        else { state.apps.push({ id: uid(), addedAt: Date.now(), ...app }); added++; }
+      });
+      if(data.t && state.title === DEFAULT_STATE.title) state.title = data.t;
+      if(data.s && state.heroSub === DEFAULT_STATE.heroSub) state.heroSub = data.s;
+      persist(); render();
+      toast('Imported ' + added + ' new app' + (added===1?'':'s') + (updated ? ' · updated ' + updated : '') + ' from link ✓');
+    }catch(e){ toast('That share link looks invalid', 'err'); }
+    touched = true;
+  }
+  const mS = h.match(/sync=([A-Za-z0-9\-_]+)/);
+  if(mS){
+    try{
+      const gid = b64dec(mS[1]).trim();
+      if(gid){
+        $('#syncGistId').value = gid;
+        openModal('sync');
+        setSyncBox('ok','Cloud store detected from link — paste your GitHub token and press “Link cloud store”.');
+      }
+    }catch(e){}
+    touched = true;
+  }
+  if(touched) history.replaceState(null, '', location.pathname + location.search);
+}
+
+function syncConfigured(){ return !!(state.sync && state.sync.gistId && state.sync.token); }
+async function ghApi(method, path, body){
+  const res = await fetch('https://api.github.com' + path, {
+    method,
+    headers: {
+      'Authorization': 'Bearer ' + state.sync.token,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if(res.status === 401) throw new Error('Token is invalid or expired (401).');
+  if(res.status === 403) throw new Error('Token may lack the “gist” scope, or rate limit hit (403). Use a CLASSIC token with “gist” ticked.');
+  if(!res.ok) throw new Error('GitHub error (HTTP ' + res.status + ').');
+  return res.json();
+}
+function cloudPayload(){
+  return { updatedAt: state.updatedAt || Date.now(), title: state.title, heroSub: state.heroSub, apps: state.apps };
+}
+async function pushGist(){
+  if(!syncConfigured()) throw new Error('Sync not linked yet');
+  await ghApi('PATCH', '/gists/' + encodeURIComponent(state.sync.gistId), {
+    description: 'Launchpad app hub backup (auto-updated)',
+    files: { [GIST_FILE]: { content: JSON.stringify(cloudPayload(), null, 2) } }
+  });
+  state.sync.lastPush = Date.now(); persist(false);
+}
+async function pullGist(){
+  if(!syncConfigured()) throw new Error('Sync not linked yet');
+  const g = await ghApi('GET', '/gists/' + encodeURIComponent(state.sync.gistId));
+  const f = g.files && g.files[GIST_FILE];
+  if(!f) throw new Error('That Gist doesn’t contain ' + GIST_FILE + ' — check the Gist ID.');
+  let data;
+  try{ data = JSON.parse(f.content); }catch(e){ throw new Error('Cloud data is corrupted'); }
+  state.sync.lastPull = Date.now(); persist(false);
+  return data;
+}
+let suppressAutoPush = false, pushTimer = null, syncing = false;
+function scheduleAutoPush(){
+  if(!syncConfigured() || !state.sync.auto) return;
+  if(suppressAutoPush){ suppressAutoPush = false; return; }
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => { pushGist().catch(()=>{}); }, 4000);
+}
+function applyRemote(data){
+  if(Array.isArray(data.apps)) state.apps = data.apps.map(a => ({ ...a, id: a.id || uid() }));
+  if(data.title) state.title = data.title;
+  if(data.heroSub) state.heroSub = data.heroSub;
+  state.updatedAt = data.updatedAt || Date.now();
+  clearTimeout(pushTimer);
+  suppressAutoPush = true;
+  persist(false); render(); renderSyncTab();
+}
+async function syncNow(interactive){
+  if(!syncConfigured()){ if(interactive) toast('Link cloud sync first', 'err'); return; }
+  if(syncing){ if(interactive) toast('Already syncing…'); return; }
+  syncing = true;
+  if(interactive) setSyncBox('loading','Syncing…');
+  try{
+    const remote = await pullGist();
+    const local = state.updatedAt || 0, rem = remote.updatedAt || 0;
+    if(rem > local){
+      applyRemote(remote);
+      if(interactive) setSyncBox('ok','Pulled ' + state.apps.length + ' apps from the cloud (cloud was newer) ✓');
+    } else if(local > rem){
+      await pushGist();
+      if(interactive) setSyncBox('ok','Pushed your ' + state.apps.length + ' apps to the cloud (this device was newer) ✓');
+    } else {
+      clearTimeout(pushTimer);
+      if(interactive) setSyncBox('ok','Already up to date ✓');
+    }
+    renderSyncTab();
+  }catch(e){
+    if(interactive) setSyncBox('error', e.message || 'Sync failed');
+  }finally{ syncing = false; }
+}
+function setSyncBox(kind, msg){
+  const b = $('#syncBox');
+  b.className = 'status show ' + kind;
+  $('#syncSpin').style.display = kind === 'loading' ? 'inline-block' : 'none';
+  $('#syncMsg').textContent = msg;
+}
+function fmtSyncTime(ts){
+  if(!ts) return '–';
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) + ', ' + d.toLocaleDateString([], {day:'numeric', month:'short'});
+}
+function renderSyncTab(){
+  if(!$('#syncManage')) return;
+  const on = syncConfigured();
+  $('#syncSetup').style.display = on ? 'none' : 'block';
+  $('#syncManage').style.display = on ? 'block' : 'none';
+  if(on){
+    $('#syncGistIdLabel').textContent = state.sync.gistId.slice(0,10) + '…';
+    $('#syncAutoLabel').textContent = state.sync.auto ? 'ON' : 'OFF';
+    $('#syncLastLabel').textContent = fmtSyncTime(Math.max(state.sync.lastPull||0, state.sync.lastPush||0));
+  }
+}
+$('#setupSyncBtn').addEventListener('click', async () => {
+  const token = $('#syncToken').value.trim();
+  if(!token){ setSyncBox('error','Paste your GitHub token first'); return; }
+  let gistId = $('#syncGistId').value.trim().replace(/^https:\/\/gist\.github\.com\//i,'').split(/[\/?#]/)[0];
+  state.sync.token = token;
+  if(gistId){
+    state.sync.gistId = gistId;
+    setSyncBox('loading','Linking this device to the cloud store…');
+    try{
+      await pullGist();
+      renderSyncTab();
+      toast('Device linked ✓');
+      syncNow(true);
+    }catch(e){
+      state.sync.gistId = ''; persist(false); renderSyncTab();
+      setSyncBox('error', e.message);
+    }
+  } else {
+    setSyncBox('loading','Creating your private cloud store (secret Gist)…');
+    try{
+      const g = await ghApi('POST','/gists', {
+        description: 'Launchpad app hub backup',
+        public: false,
+        files: { [GIST_FILE]: { content: JSON.stringify(cloudPayload(), null, 2) } }
+      });
+      if(!g.id) throw new Error('Gist creation returned no id');
+      state.sync.gistId = g.id;
+      persist(false); renderSyncTab();
+      setSyncBox('ok','Cloud store created ✓ Auto-sync is ON. On your phone: open the “Copy setup link” URL, then enter this same token once.');
+      toast('Cloud sync ready ✓');
+    }catch(e){
+      state.sync.token = ''; persist(false); renderSyncTab();
+      setSyncBox('error', e.message);
+    }
+  }
+});
+$('#syncNowBtn').addEventListener('click', () => syncNow(true));
+$('#autoSyncBtn').addEventListener('click', () => {
+  state.sync.auto = !state.sync.auto;
+  persist(false); renderSyncTab();
+  toast('Auto-sync ' + (state.sync.auto ? 'ON' : 'OFF'));
+});
+$('#copyShareBtn').addEventListener('click', async () => {
+  if(!state.apps.length){ toast('Add some apps first', 'err'); return; }
+  const ok = await copyText(buildShareUrl());
+  toast(ok ? 'Share link copied — open it on your other device ✓' : 'Copy failed — long-press the address bar instead', ok ? 'ok' : 'err');
+});
+$('#copySetupBtn').addEventListener('click', async () => {
+  const ok = await copyText(buildSetupUrl());
+  toast(ok ? 'Setup link copied — open it on the other device ✓' : 'Copy failed', ok ? 'ok' : 'err');
+});
+$('#unlinkSyncBtn').addEventListener('click', e => {
+  const btn = e.currentTarget;
+  if(btn.dataset.armed){
+    delete btn.dataset.armed; btn.textContent = 'Unlink';
+    state.sync = { ...DEFAULT_STATE.sync };
+    persist(false); renderSyncTab();
+    setSyncBox('ok','Unlinked — apps stay on this device but no longer sync.');
+    return;
+  }
+  btn.dataset.armed = '1'; btn.textContent = 'Sure?';
+  setTimeout(()=>{ if(btn.isConnected){ delete btn.dataset.armed; btn.textContent = 'Unlink'; } }, 2600);
+});
+
 /* ================= samples ================= */
 function loadSamples(){
   [
@@ -927,8 +1217,10 @@ function loadSamples(){
 }
 
 /* ================= boot ================= */
+importFromHash();
 render();
+renderSyncTab();
+if(syncConfigured() && state.sync.auto) syncNow(false);
 </script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f"}' crossorigin="anonymous"></script>
 </body>
 </html>
