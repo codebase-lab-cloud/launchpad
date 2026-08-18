@@ -421,7 +421,7 @@ function buildModal(){
   var closeBtn = el('button','icon-btn'); closeBtn.type = 'button'; closeBtn.title = 'Close'; closeBtn.appendChild(icon(IC.x));
   head.appendChild(closeBtn);
   var tabs = el('div','tabs');
-  var tabDefs = [['add', IC.plus, 'Add app'], ['manage', IC.grid, 'Manage'], ['general', IC.gear, 'General']];
+  var tabDefs = [['add', IC.plus, 'Add app'], ['manage', IC.grid, 'Manage'], ['general', IC.gear, 'General'], ['connect', IC.cloud, 'Connect']];
   tabDefs.forEach(function(td, i){
     var b = el('button','tab' + (i === 0 ? ' active' : '')); b.type = 'button'; b.dataset.tab = td[0];
     b.appendChild(icon(td[1]));
@@ -542,8 +542,42 @@ function buildModal(){
   genActions.appendChild(genSave);
   [ghStatus,fTitle,fTag,fTheme,genActions].forEach(function(n){ genBody.appendChild(n); });
 
+  /* --- connect tab (view-only devices connect once, no adding needed) --- */
+  var conBody = el('div','tab-body'); conBody.id = 'tab-connect';
+  var conNote = el('div','data-note');
+  conNote.appendChild(el('span',null,'Connect this device to your private repo to load your apps — no need to add an app first. One-time only: after connecting (with “remember” ticked), this device auto-loads your apps on every visit.'));
+  conBody.appendChild(conNote);
+  function conField(label, ph, id, type){
+    var f = el('div','field'); f.appendChild(el('label',null,label));
+    var i = el('input'); i.type = type || 'text'; i.placeholder = ph; i.setAttribute('autocomplete','off'); i.id = id;
+    f.appendChild(i); return f;
+  }
+  var conTwo = el('div','two-col');
+  var cUF = conField('GITHUB USERNAME','your-username','cUser');
+  var cRF = conField('PRIVATE REPO NAME','my-private-vault','cRepo');
+  var cBF = conField('BRANCH','main','cBranch');
+  var cPF = conField('SUBFOLDER (optional)','apps/launchpad','cPath');
+  conTwo.appendChild(cUF); conTwo.appendChild(cRF); conTwo.appendChild(cBF); conTwo.appendChild(cPF);
+  conBody.appendChild(conTwo);
+  conBody.appendChild(conField('PERSONAL ACCESS TOKEN (fine-grained · Contents: Read and write)','github_pat_…','cPat','password'));
+  var conChkRow = el('div','check-row');
+  var cRemember = el('input'); cRemember.type = 'checkbox'; cRemember.id = 'cRemember'; cRemember.checked = true;
+  conChkRow.appendChild(cRemember);
+  conChkRow.appendChild(el('span',null,'Remember token on this device (auto-load on every visit)'));
+  conBody.appendChild(conChkRow);
+  var conStatus = el('div','status'); conStatus.id = 'conStatus';
+  var conSpin = el('span','spinner'); conStatus.appendChild(conSpin);
+  var conMsg = el('span'); conStatus.appendChild(conMsg);
+  conBody.appendChild(conStatus);
+  var conActions = el('div','form-actions');
+  var connectBtn = el('button','btn btn-primary btn-sm'); connectBtn.type = 'button'; connectBtn.id = 'connectBtn';
+  connectBtn.appendChild(icon(IC.cloud));
+  connectBtn.appendChild(el('span',null,'Connect & load apps'));
+  conActions.appendChild(connectBtn);
+  conBody.appendChild(conActions);
+
   modal.appendChild(head); modal.appendChild(tabs);
-  modal.appendChild(addBody); modal.appendChild(manageBody); modal.appendChild(genBody);
+  modal.appendChild(addBody); modal.appendChild(manageBody); modal.appendChild(genBody); modal.appendChild(conBody);
   overlay.appendChild(modal);
 
   MODAL = {
@@ -556,7 +590,10 @@ function buildModal(){
     clearBtn: clearBtn, saveBtn: saveBtn, saveLabel: saveLabel,
     meta: null, manageList: manageList,
     titleInput: titleInput, tagInput: tagInput, darkBtn: darkBtn, lightBtn: lightBtn, genSave: genSave,
-    forgetBtn: forgetBtn
+    forgetBtn: forgetBtn,
+    cUser: cUF.querySelector('input'), cRepo: cRF.querySelector('input'), cBranch: cBF.querySelector('input'),
+    cPath: cPF.querySelector('input'), cPat: conBody.querySelector('#cPat'), cRemember: cRemember,
+    conStatus: conStatus, conSpin: conSpin, conMsg: conMsg, connectBtn: connectBtn
   };
 
   closeBtn.addEventListener('click', closeModal);
@@ -581,6 +618,7 @@ function buildModal(){
     gh.pat = ''; saveGh(); renderGhFields(); updateGhStatus();
     toast('Token forgotten on this device');
   });
+  connectBtn.addEventListener('click', doConnect);
   manageList.addEventListener('click', manageClick);
   return overlay;
 }
@@ -615,9 +653,44 @@ function openModal(tab){
 function closeModal(){ MODAL.overlay.classList.remove('open'); }
 function switchTab(tab){
   MODAL.tabs.querySelectorAll('.tab').forEach(function(t){ t.classList.toggle('active', t.dataset.tab === tab); });
-  ['add','manage','general'].forEach(function(id){
+  ['add','manage','general','connect'].forEach(function(id){
     var body = ROOT.querySelector('#tab-' + id);
     if(body) body.classList.toggle('active', id === tab);
+  });
+}
+function setConnectStatus(kind, msg){
+  MODAL.conStatus.className = 'status show ' + kind;
+  MODAL.conSpin.style.display = kind === 'loading' ? 'inline-block' : 'none';
+  MODAL.conMsg.textContent = msg || '';
+}
+function doConnect(){
+  gh.user = MODAL.cUser.value.trim();
+  gh.repo = MODAL.cRepo.value.trim();
+  gh.branch = MODAL.cBranch.value.trim() || 'main';
+  gh.path = MODAL.cPath.value.trim();
+  gh.remember = MODAL.cRemember.checked;
+  var token = MODAL.cPat.value.trim() || (gh.remember ? gh.pat : '');
+  if(!gh.user || !gh.repo || !token){ setConnectStatus('error','Fill in username, repo and PAT.'); return; }
+  setConnectStatus('loading','Connecting and loading your apps…');
+  fetchJsonFile(token).then(function(f){
+    if(gh.remember) gh.pat = token;
+    saveGh(); renderGhFields(); updateGhStatus();
+    if(f && f.data){
+      state = Object.assign(defaultState(), f.data);
+      state.apps = (state.apps || []).map(normApp);
+      jsonSha = f.sha;
+      persistLocal(); render();
+      setStatus('ok','Synced');
+      setConnectStatus('ok','Connected — ' + state.apps.length + ' app' + (state.apps.length === 1 ? '' : 's') + ' loaded. This device now auto-loads on every visit.');
+      toast('Connected — ' + state.apps.length + ' apps loaded');
+    } else {
+      persistLocal(); render();
+      setStatus('ok','Synced');
+      setConnectStatus('ok','Connected — the store is empty. Add your first app from the Add app tab.');
+      toast('Connected — store is empty');
+    }
+  }).catch(function(e){
+    setConnectStatus('error', e.message || 'Connection failed');
   });
 }
 function renderGhFields(){
@@ -628,6 +701,13 @@ function renderGhFields(){
   MODAL.patInput.value = '';
   MODAL.patInput.placeholder = gh.pat ? 'Saved on this device — paste a new one to replace' : 'github_pat_… (required to save)';
   MODAL.rememberChk.checked = gh.remember;
+  MODAL.cUser.value = gh.user || '';
+  MODAL.cRepo.value = gh.repo || '';
+  MODAL.cBranch.value = gh.branch || 'main';
+  MODAL.cPath.value = gh.path || '';
+  MODAL.cPat.value = '';
+  MODAL.cPat.placeholder = gh.pat ? 'Saved on this device — paste a new one to replace' : 'github_pat_… (required to connect)';
+  MODAL.cRemember.checked = gh.remember;
 }
 function updateGhStatus(){
   var d = ROOT.querySelector('#ghDot'), tx = ROOT.querySelector('#ghStatusTxt');
@@ -935,12 +1015,22 @@ function render(){
     empty.appendChild(el('h2',null,'Add your first app'));
     empty.appendChild(el('p',null,'Paste any GitHub repo link or app URL — the form asks for all details plus your GitHub PAT once, and saves straight to your private repo.'));
     var row = el('div','row');
-    var b1 = el('button','btn btn-primary'); b1.type = 'button';
-    b1.appendChild(icon(IC.plus)); b1.appendChild(el('span',null,'Add an app'));
-    b1.addEventListener('click', function(){ openModal('add'); });
-    var b2 = el('button','btn btn-ghost'); b2.type = 'button'; b2.textContent = 'Load 2 sample apps';
-    b2.addEventListener('click', loadSamples);
-    row.appendChild(b1); row.appendChild(b2);
+    if(!ghReady()){
+      var cb = el('button','btn btn-primary'); cb.type = 'button';
+      cb.appendChild(icon(IC.cloud)); cb.appendChild(el('span',null,'Connect to your private repo'));
+      cb.addEventListener('click', function(){ openModal('connect'); });
+      var ab = el('button','btn btn-ghost'); ab.type = 'button';
+      ab.appendChild(icon(IC.plus)); ab.appendChild(el('span',null,'Add an app'));
+      ab.addEventListener('click', function(){ openModal('add'); });
+      row.appendChild(cb); row.appendChild(ab);
+    } else {
+      var b1 = el('button','btn btn-primary'); b1.type = 'button';
+      b1.appendChild(icon(IC.plus)); b1.appendChild(el('span',null,'Add an app'));
+      b1.addEventListener('click', function(){ openModal('add'); });
+      var b2 = el('button','btn btn-ghost'); b2.type = 'button'; b2.textContent = 'Load 2 sample apps';
+      b2.addEventListener('click', loadSamples);
+      row.appendChild(b1); row.appendChild(b2);
+    }
     empty.appendChild(row);
     UI.grid.appendChild(empty);
     renderManage(); updateNav();
