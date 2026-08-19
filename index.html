@@ -4,10 +4,13 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#05060a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Launchpad" />
 <title>Launchpad</title>
 <link rel="stylesheet" href="launchpad.css" />
 <style>
-  html,body{margin:0;padding:0;background:#05060a;height:100%}
+  html,body{margin:0;padding:0;background:#05060a;height:100%;overscroll-behavior-y:contain}
   #boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#98a2b8;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;font-size:.9rem;gap:10px}
   #boot .ring{width:18px;height:18px;border-radius:50%;border:2px solid rgba(124,92,255,.25);border-top-color:#7c5cff;animation:brot .8s linear infinite}
   @keyframes brot{to{transform:rotate(360deg)}}
@@ -15,7 +18,28 @@
 </head>
 <body>
 <div id="app-root"><div id="boot"><span class="ring"></span>Loading Launchpad…</div></div>
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   LAUNCHPAD_CONFIG — optional built-in connection.
+   Fill this in ONCE and every device/browser auto-loads your apps,
+   even ones that clear their storage (incognito, "delete on exit").
+
+     user / repo / branch / path → where launchpad.json lives
+     pat → your fine-grained PAT (Contents: Read and write).
+
+   ⚠ If you embed the PAT, anyone who obtains THIS PAGE'S URL can
+   read/write that one repo. Fine for a private personal link; leave
+   pat empty if you share the URL publicly (devices then connect
+   once via Settings → Connect, as before).
+   ══════════════════════════════════════════════════════════════════ */
+window.LAUNCHPAD_CONFIG = Object.assign({
+  user: '',            // e.g. 'your-username'
+  repo: '',            // e.g. 'my-private-vault'
+  branch: 'main',
+  path: '',            // subfolder, e.g. 'apps/launchpad'
+  pat: ''              // e.g. 'github_pat_…' (optional — see warning)
+}, window.LAUNCHPAD_CONFIG || {});
+</script>
 <script src="launchpad.js"></script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a2d435d52eb5c230',t:'MTc4NzA5MDYyNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f"}' crossorigin="anonymous"></script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a2d7cf7b3ff8fbde',t:'MTc4NzEyODM3NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
