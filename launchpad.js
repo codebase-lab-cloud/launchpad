@@ -64,7 +64,7 @@ function icon(paths, vb){
   return s;
 }
 var IC = {
-  rocket:'<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4.5c1.62-1.63 5-2.5 5-2.5"/><path d="M12 15v5s3.03-.55 4.5-2c1.63-1.62 2.5-5 2.5-5"/>',
+  rocket:'<g transform="translate(12, 12) rotate(45) scale(0.05)"><path d="M 0 -170 C 45 -100 68 -15 68 80 L 42 70 L 0 80 L -42 70 L -68 80 C -68 -15 -45 -100 0 -170 Z" fill="#6366f1"/><path d="M -42 30 L -115 88 L -55 88 Z" fill="#6d28d9"/><path d="M 42 30 L 115 88 L 55 88 Z" fill="#2563eb"/><circle cx="0" cy="-55" r="20" fill="#ffffff"/><circle cx="0" cy="-55" r="14" fill="#38bdf8"/><path d="M 0 -170 C 15 -142 24 -118 24 -100 L -24 -100 C -24 -118 -15 -142 0 -170 Z" fill="#93c5fd"/><path d="M -24 80 Q 0 160 0 200 Q 0 160 24 80 Z" fill="#f97316"/><path d="M -12 80 Q 0 135 0 165 Q 0 135 12 80 Z" fill="#fef08a"/></g>',
   grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
   plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   search:'<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
@@ -917,11 +917,13 @@ function makeAvatar(app){
   av.style.setProperty('--g2', g[1]);
   av.textContent = (app.name || '?')[0].toUpperCase();
   if(app.icon){
+    av.classList.add('has-icon');
     var img = document.createElement('img');
     img.alt = '';
     img.setAttribute('loading','lazy');
     img.src = app.icon;
-    img.addEventListener('error', function(){ img.remove(); });
+    img.addEventListener('load', function(){ av.classList.add('loaded'); });
+    img.addEventListener('error', function(){ img.remove(); av.classList.remove('has-icon'); });
     av.appendChild(img);
   }
   return av;

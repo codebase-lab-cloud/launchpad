@@ -50,8 +50,8 @@
 /* header */
 #app-root header{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:22px 0 10px}
 #app-root .brand{display:flex; align-items:center; gap:12px; font-weight:800; letter-spacing:-.02em; font-size:1.05rem; min-width:0}
-#app-root .brand .logo{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 6px 18px -6px rgba(124,92,255,.6);flex:none}
-#app-root .brand .logo svg{width:19px;height:19px}
+#app-root .brand .logo{width:38px;height:38px;border-radius:0;display:grid;place-items:center;background:transparent;box-shadow:none;flex:none}
+#app-root .brand .logo svg{width:34px;height:34px}
 #app-root .brand > div:last-child{min-width:0}
 #app-root .brand span#brandName{display:block}
 #app-root .brand small{display:block;font-weight:500;color:var(--faint);font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
@@ -109,7 +109,8 @@
 @media (hover:none){ #app-root .card::after{opacity:1;background:radial-gradient(260px circle at 50% 0%,rgba(124,92,255,.14),transparent 62%)} }
 #app-root .card-top{display:flex;align-items:center;gap:13px}
 #app-root .avatar{width:48px;height:48px;border-radius:13px;flex:none;display:grid;place-items:center;font-weight:800;font-size:1.15rem;color:#fff;overflow:hidden;position:relative;background:linear-gradient(135deg,var(--g1,#7c5cff),var(--g2,#3d7bff))}
-#app-root .avatar img{width:100%;height:100%;object-fit:cover;position:relative;z-index:1}
+#app-root .avatar.has-icon.loaded{background:transparent !important;box-shadow:none}
+#app-root .avatar img{width:100%;height:100%;object-fit:contain;position:relative;z-index:1}
 #app-root .card-titles{min-width:0;flex:1}
 #app-root .card-titles h3{font-size:1.02rem;font-weight:750;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #app-root .card-titles .host{font-size:.78rem;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
