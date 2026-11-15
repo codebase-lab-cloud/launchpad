@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="lpRocketGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="lpFlameGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="50%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(256, 256) rotate(45) scale(1.15)">
+    <!-- Rocket Fuselage -->
+    <path d="M 0 -170 C 45 -100 68 -15 68 80 L 42 70 L 0 80 L -42 70 L -68 80 C -68 -15 -45 -100 0 -170 Z" fill="url(#lpRocketGrad)"/>
+    <!-- Left Fin -->
+    <path d="M -42 30 L -115 88 L -55 88 Z" fill="#6d28d9"/>
+    <!-- Right Fin -->
+    <path d="M 42 30 L 115 88 L 55 88 Z" fill="#2563eb"/>
+    <!-- Center Porthole -->
+    <circle cx="0" cy="-55" r="20" fill="#ffffff" fill-opacity="0.95"/>
+    <circle cx="0" cy="-55" r="14" fill="#38bdf8"/>
+    <!-- Rocket Nose Tip Accent -->
+    <path d="M 0 -170 C 15 -142 24 -118 24 -100 L -24 -100 C -24 -118 -15 -142 0 -170 Z" fill="#93c5fd" fill-opacity="0.8"/>
+    <!-- Exhaust Flame -->
+    <path d="M -22 90 C -30 145 0 190 0 190 C 0 190 30 145 22 90 Z" fill="url(#lpFlameGrad)"/>
+    <path d="M -11 90 C -15 125 0 155 0 155 C 0 155 15 125 11 90 Z" fill="#fef08a"/>
+  </g>
+</svg>
